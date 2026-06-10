@@ -1,4 +1,5 @@
-export type AlarmStatus = 'pending' | 'confirmed' | 'false_alarm' | 'handled';
+export type AlarmStatus = 'pending' | 'confirmed' | 'false_alarm' | 'handled' | 'archived';
+export type AlarmFlowStatus = 'pending' | 'confirmed' | 'notified' | 'arrived' | 'disposed' | 'reviewed' | 'archived' | 'false_alarm';
 export type AlarmLevel = 'general' | 'important' | 'urgent';
 export type DeviceStatus = 'normal' | 'warning' | 'fault' | 'offline';
 export type DeviceType = 'detector' | 'fire_door' | 'smoke_exhaust' | 'sprinkler' | 'fire_hose';
@@ -14,8 +15,14 @@ export interface Alarm {
   type: string;
   level: AlarmLevel;
   status: AlarmStatus;
+  flowStatus: AlarmFlowStatus;
   alarmTime: string;
   confirmTime?: string;
+  notifyTime?: string;
+  arriveTime?: string;
+  disposeTime?: string;
+  reviewTime?: string;
+  archiveTime?: string;
   handleTime?: string;
   description: string;
   operator?: string;
@@ -74,6 +81,8 @@ export interface PhoneRecord {
   phone: string;
   content: string;
   duration: number;
+  callbackStatus?: 'pending' | 'done';
+  callbackRemark?: string;
 }
 
 export interface DisposalStep {
@@ -98,6 +107,9 @@ export interface DutyLog {
   signatureOff?: string;
   events: string[];
   remarks?: string;
+  carriedOverSteps?: string[];
+  carriedOverPhones?: string[];
+  carriedOverAlarms?: string[];
 }
 
 export interface Contact {

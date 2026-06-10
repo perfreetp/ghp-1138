@@ -37,7 +37,8 @@ const FloorPlan: React.FC = () => {
 
   const floorDevices = getDevicesByFloor(selectedFloor);
   const floorCameras = getCamerasByFloor(selectedFloor);
-  const floorAlarms = alarms.filter((a) => a.floor === selectedFloor && a.status === 'pending');
+  const floorAlarms = alarms.filter((a) => a.floor === selectedFloor && (a.status === 'pending' || a.status === 'confirmed'));
+  const floorAllAlarms = alarms.filter((a) => a.floor === selectedFloor);
 
   const detectors = floorDevices.filter((d): d is Detector => d.type === 'detector');
   const fireDoors = floorDevices.filter((d): d is FireDoor => d.type === 'fire_door');
@@ -64,16 +65,24 @@ const FloorPlan: React.FC = () => {
   };
 
   const handleDeviceClick = (device: Device) => {
-    const relatedAlarm = alarms.find(
-      (a) => a.deviceId === device.id && a.status === 'pending'
+    const relatedActiveAlarm = alarms.find(
+      (a) => a.deviceId === device.id && (a.status === 'pending' || a.status === 'confirmed')
     );
-    if (relatedAlarm) {
-      setSelectedAlarm(relatedAlarm);
+    if (relatedActiveAlarm) {
+      setSelectedAlarm(relatedActiveAlarm);
       setShowAlarmModal(true);
-    } else {
-      setSelectedDevice(device);
-      setShowDeviceModal(true);
+      return;
     }
+    const relatedHistoryAlarm = alarms.find(
+      (a) => a.deviceId === device.id && (a.status === 'handled' || a.status === 'archived' || a.status === 'false_alarm')
+    );
+    if (relatedHistoryAlarm) {
+      setSelectedAlarm(relatedHistoryAlarm);
+      setShowAlarmModal(true);
+      return;
+    }
+    setSelectedDevice(device);
+    setShowDeviceModal(true);
   };
 
   const handleViewCamera = (cameraId: string) => {
@@ -85,7 +94,21 @@ const FloorPlan: React.FC = () => {
   };
 
   const isDeviceAlarming = (deviceId: string) => {
-    return alarms.some((a) => a.deviceId === deviceId && a.status === 'pending');
+    return alarms.some(
+      (a) => a.deviceId === deviceId && (a.status === 'pending' || a.status === 'confirmed')
+    );
+  };
+
+  const hasDeviceAlarmHistory = (deviceId: string) => {
+    return alarms.some(
+      (a) => a.deviceId === deviceId && (a.status === 'handled' || a.status === 'archived' || a.status === 'false_alarm')
+    );
+  };
+
+  const getDeviceAlarmHistory = (deviceId: string) => {
+    return alarms.filter(
+      (a) => a.deviceId === deviceId && (a.status === 'handled' || a.status === 'archived' || a.status === 'false_alarm')
+    );
   };
 
   const isDeviceHighlighted = (deviceId: string) => {
@@ -219,7 +242,17 @@ const FloorPlan: React.FC = () => {
                         />
                       </>
                     )}
-                    <Tooltip title={`${detector.name} - ${statusText[detector.status]}${isDeviceAlarming(detector.id) ? ' [报警中]' : ''}${isDeviceHighlighted(detector.id) ? ' [定位中]' : ''}`}>
+                    {hasDeviceAlarmHistory(detector.id) && !isDeviceAlarming(detector.id) && !isDeviceHighlighted(detector.id) && (
+                      <circle
+                        cx={detector.position.x + 10}
+                        cy={detector.position.y - 10}
+                        r="6"
+                        fill="#8c8c8c"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                    )}
+                    <Tooltip title={`${detector.name} - ${statusText[detector.status]}${isDeviceAlarming(detector.id) ? ' [报警中]' : ''}${isDeviceHighlighted(detector.id) ? ' [定位中]' : ''}${hasDeviceAlarmHistory(detector.id) && !isDeviceAlarming(detector.id) ? ` [历史报警 ${getDeviceAlarmHistory(detector.id).length}条]` : ''}`}>
                       <circle
                         cx={detector.position.x}
                         cy={detector.position.y}
@@ -249,28 +282,62 @@ const FloorPlan: React.FC = () => {
                     onClick={() => handleDeviceClick(door)}
                   >
                     {isDeviceHighlighted(door.id) && (
-                      <circle
-                        cx={door.position.x}
-                        cy={door.position.y}
-                        r="32"
-                        fill="none"
-                        stroke="#faad14"
-                        strokeWidth="4"
-                        className="pulse-animation"
-                      />
+                      <>
+                        <circle
+                          cx={door.position.x}
+                          cy={door.position.y}
+                          r="35"
+                          fill="none"
+                          stroke="#faad14"
+                          strokeWidth="4"
+                          className="pulse-animation"
+                        />
+                        <circle
+                          cx={door.position.x}
+                          cy={door.position.y}
+                          r="40"
+                          fill="none"
+                          stroke="#faad14"
+                          strokeWidth="2"
+                          opacity="0.5"
+                          className="pulse-animation-delay"
+                        />
+                      </>
                     )}
                     {isDeviceAlarming(door.id) && (
+                      <>
+                        <circle
+                          cx={door.position.x}
+                          cy={door.position.y}
+                          r="25"
+                          fill="none"
+                          stroke="#ff4d4f"
+                          strokeWidth="3"
+                          className="pulse-animation"
+                        />
+                        <circle
+                          cx={door.position.x}
+                          cy={door.position.y}
+                          r="30"
+                          fill="none"
+                          stroke="#ff4d4f"
+                          strokeWidth="2"
+                          opacity="0.5"
+                          className="pulse-animation-delay"
+                        />
+                      </>
+                    )}
+                    {hasDeviceAlarmHistory(door.id) && !isDeviceAlarming(door.id) && !isDeviceHighlighted(door.id) && (
                       <circle
-                        cx={door.position.x}
-                        cy={door.position.y}
-                        r="22"
-                        fill="none"
-                        stroke="#ff4d4f"
-                        strokeWidth="2"
-                        className="pulse-animation"
+                        cx={door.position.x + 12}
+                        cy={door.position.y - 10}
+                        r="6"
+                        fill="#8c8c8c"
+                        stroke="#fff"
+                        strokeWidth="1"
                       />
                     )}
-                    <Tooltip title={`${door.name} - ${statusText[door.status]}${isDeviceAlarming(door.id) ? ' [报警中]' : ''}${isDeviceHighlighted(door.id) ? ' [定位中]' : ''}`}>
+                    <Tooltip title={`${door.name} - ${statusText[door.status]}${isDeviceAlarming(door.id) ? ' [报警中]' : ''}${isDeviceHighlighted(door.id) ? ' [定位中]' : ''}${hasDeviceAlarmHistory(door.id) && !isDeviceAlarming(door.id) ? ` [历史报警 ${getDeviceAlarmHistory(door.id).length}条]` : ''}`}>
                       <rect
                         x={door.position.x - 12}
                         y={door.position.y - 8}
@@ -302,28 +369,62 @@ const FloorPlan: React.FC = () => {
                     onClick={() => handleDeviceClick(exhaust)}
                   >
                     {isDeviceHighlighted(exhaust.id) && (
-                      <circle
-                        cx={exhaust.position.x}
-                        cy={exhaust.position.y}
-                        r="32"
-                        fill="none"
-                        stroke="#faad14"
-                        strokeWidth="4"
-                        className="pulse-animation"
-                      />
+                      <>
+                        <circle
+                          cx={exhaust.position.x}
+                          cy={exhaust.position.y}
+                          r="35"
+                          fill="none"
+                          stroke="#faad14"
+                          strokeWidth="4"
+                          className="pulse-animation"
+                        />
+                        <circle
+                          cx={exhaust.position.x}
+                          cy={exhaust.position.y}
+                          r="40"
+                          fill="none"
+                          stroke="#faad14"
+                          strokeWidth="2"
+                          opacity="0.5"
+                          className="pulse-animation-delay"
+                        />
+                      </>
                     )}
                     {isDeviceAlarming(exhaust.id) && (
+                      <>
+                        <circle
+                          cx={exhaust.position.x}
+                          cy={exhaust.position.y}
+                          r="25"
+                          fill="none"
+                          stroke="#ff4d4f"
+                          strokeWidth="3"
+                          className="pulse-animation"
+                        />
+                        <circle
+                          cx={exhaust.position.x}
+                          cy={exhaust.position.y}
+                          r="30"
+                          fill="none"
+                          stroke="#ff4d4f"
+                          strokeWidth="2"
+                          opacity="0.5"
+                          className="pulse-animation-delay"
+                        />
+                      </>
+                    )}
+                    {hasDeviceAlarmHistory(exhaust.id) && !isDeviceAlarming(exhaust.id) && !isDeviceHighlighted(exhaust.id) && (
                       <circle
-                        cx={exhaust.position.x}
-                        cy={exhaust.position.y}
-                        r="22"
-                        fill="none"
-                        stroke="#ff4d4f"
-                        strokeWidth="2"
-                        className="pulse-animation"
+                        cx={exhaust.position.x + 12}
+                        cy={exhaust.position.y - 10}
+                        r="6"
+                        fill="#8c8c8c"
+                        stroke="#fff"
+                        strokeWidth="1"
                       />
                     )}
-                    <Tooltip title={`${exhaust.name} - ${statusText[exhaust.status]}${isDeviceAlarming(exhaust.id) ? ' [报警中]' : ''}${isDeviceHighlighted(exhaust.id) ? ' [定位中]' : ''}`}>
+                    <Tooltip title={`${exhaust.name} - ${statusText[exhaust.status]}${isDeviceAlarming(exhaust.id) ? ' [报警中]' : ''}${isDeviceHighlighted(exhaust.id) ? ' [定位中]' : ''}${hasDeviceAlarmHistory(exhaust.id) && !isDeviceAlarming(exhaust.id) ? ` [历史报警 ${getDeviceAlarmHistory(exhaust.id).length}条]` : ''}`}>
                       <polygon
                         points={`${exhaust.position.x},${exhaust.position.y - 12} ${exhaust.position.x + 12},${exhaust.position.y + 8} ${exhaust.position.x - 12},${exhaust.position.y + 8}`}
                         fill={isDeviceAlarming(exhaust.id) ? '#ff4d4f' : isDeviceHighlighted(exhaust.id) ? '#faad14' : statusColor[exhaust.status]}
@@ -388,12 +489,17 @@ const FloorPlan: React.FC = () => {
                 size="small"
                 style={{ borderColor: '#faad14', borderWidth: 2 }}
                 extra={
-                  <Button
-                    size="small"
-                    onClick={() => setLocateAlarm(null)}
-                  >
-                    取消定位
-                  </Button>
+                  <Space>
+                    <Tag color="gold" style={{ color: '#faad14', borderColor: '#faad14' }}>
+                      {locateAlarm.floor > 0 ? `${locateAlarm.floor}层` : `B${Math.abs(locateAlarm.floor)}层`}
+                    </Tag>
+                    <Button
+                      size="small"
+                      onClick={() => setLocateAlarm(null)}
+                    >
+                      取消定位
+                    </Button>
+                  </Space>
                 }
               >
                 <Descriptions bordered column={1} size="small">
@@ -458,6 +564,84 @@ const FloorPlan: React.FC = () => {
                     }}
                   >
                     处置报警
+                  </Button>
+                </Space>
+              </Card>
+            )}
+
+            {locateAlarm && locateAlarm.floor !== selectedFloor && (
+              <Card
+                title={
+                  <Space>
+                    <ExclamationCircleOutlined style={{ color: '#faad14' }} />
+                    定位报警 (楼层切换)
+                  </Space>
+                }
+                size="small"
+                style={{ borderColor: '#faad14', borderWidth: 2, opacity: 0.9 }}
+                extra={
+                  <Space>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => {
+                        setSelectedFloor(locateAlarm.floor);
+                      }}
+                    >
+                      切回定位楼层
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={() => setLocateAlarm(null)}
+                    >
+                      清除
+                    </Button>
+                  </Space>
+                }
+              >
+                <Descriptions bordered column={1} size="small">
+                  <Descriptions.Item label="报警编号">
+                    <Tag color="red">{locateAlarm.id}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="设备编号">
+                    {locateAlarm.deviceId}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="目标楼层">
+                    <Tag color="blue">
+                      {locateAlarm.floor > 0 ? `${locateAlarm.floor}层` : `B${Math.abs(locateAlarm.floor)}层`}
+                    </Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="当前楼层">
+                    <Tag color="default">
+                      {selectedFloor > 0 ? `${selectedFloor}层` : `B${Math.abs(selectedFloor)}层`}
+                    </Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="报警位置">
+                    {locateAlarm.location}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="报警类型">
+                    {locateAlarm.type}
+                  </Descriptions.Item>
+                </Descriptions>
+
+                <Space style={{ width: '100%', marginTop: 12, justifyContent: 'flex-end' }}>
+                  <Button
+                    type="primary"
+                    icon={<EnvironmentOutlined />}
+                    onClick={() => {
+                      setSelectedFloor(locateAlarm.floor);
+                    }}
+                  >
+                    跳转到定位楼层
+                  </Button>
+                  <Button
+                    icon={<EyeOutlined />}
+                    onClick={() => {
+                      setSelectedAlarm(locateAlarm);
+                      setShowAlarmModal(true);
+                    }}
+                  >
+                    直接处置
                   </Button>
                 </Space>
               </Card>

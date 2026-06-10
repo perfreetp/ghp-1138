@@ -30,7 +30,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useStore } from '../store/useStore';
-import type { Alarm, AlarmStatus, AlarmLevel } from '../types';
+import type { Alarm, AlarmStatus, AlarmLevel, AlarmFlowStatus } from '../types';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -106,24 +106,48 @@ const AlarmMonitor: React.FC = () => {
     urgent: 'red',
   };
 
-  const statusColor = {
+  const statusColor: Record<AlarmStatus, string> = {
     pending: 'red',
     confirmed: 'orange',
     false_alarm: 'default',
     handled: 'green',
+    archived: 'default',
   };
 
-  const statusText = {
+  const statusText: Record<AlarmStatus, string> = {
     pending: '待处理',
     confirmed: '已确认',
     false_alarm: '误报',
     handled: '已处理',
+    archived: '已归档',
   };
 
   const levelText = {
     general: '一般',
     important: '重要',
     urgent: '紧急',
+  };
+
+  const flowStatusColor: Record<AlarmFlowStatus, string> = {
+    pending: 'default',
+    confirmed: 'blue',
+    notified: 'cyan',
+    arrived: 'orange',
+    disposed: 'green',
+    reviewed: 'teal',
+    archived: 'default',
+    false_alarm: 'magenta',
+  };
+
+  const flowStatusText: Record<AlarmFlowStatus, string> = {
+    pending: '待确认',
+    confirmed: '已确认',
+    notified: '已通知',
+    arrived: '已到达',
+    disposed: '已处置',
+    reviewed: '已复核',
+    archived: '已归档',
+    false_alarm: '误报',
   };
 
   const handleViewDetail = (alarm: Alarm) => {
@@ -245,6 +269,15 @@ const AlarmMonitor: React.FC = () => {
       render: (status: AlarmStatus) => <Tag color={statusColor[status]}>{statusText[status]}</Tag>,
     },
     {
+      title: '流转状态',
+      dataIndex: 'flowStatus',
+      key: 'flowStatus',
+      width: 110,
+      render: (flowStatus: AlarmFlowStatus) => (
+        <Tag color={flowStatusColor[flowStatus]}>{flowStatusText[flowStatus]}</Tag>
+      ),
+    },
+    {
       title: '位置',
       dataIndex: 'location',
       key: 'location',
@@ -286,6 +319,17 @@ const AlarmMonitor: React.FC = () => {
       fixed: 'right' as const,
       render: (_: any, record: Alarm) => (
         <Space size="small" wrap>
+          <Button
+            type="link"
+            size="small"
+            icon={<CheckCircleOutlined />}
+            onClick={() => {
+              setSelectedAlarm(record);
+              setShowAlarmModal(true);
+            }}
+          >
+            处置
+          </Button>
           <Button
             type="link"
             size="small"

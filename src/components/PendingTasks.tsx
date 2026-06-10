@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useStore } from '../store/useStore';
-import type { PendingTask } from '../types';
+import type { PendingTask, AlarmFlowStatus } from '../types';
 
 const PendingTasks: React.FC = () => {
   const { pendingTasks, completePendingTask, setSelectedAlarm, setShowAlarmModal, alarms } = useStore();
@@ -52,6 +52,28 @@ const PendingTasks: React.FC = () => {
     low: '低',
   };
 
+  const flowStatusColor: Record<AlarmFlowStatus, string> = {
+    pending: 'default',
+    confirmed: 'blue',
+    notified: 'cyan',
+    arrived: 'orange',
+    disposed: 'green',
+    reviewed: 'teal',
+    archived: 'default',
+    false_alarm: 'magenta',
+  };
+
+  const flowStatusText: Record<AlarmFlowStatus, string> = {
+    pending: '待确认',
+    confirmed: '已确认',
+    notified: '已通知',
+    arrived: '已到达',
+    disposed: '已处置',
+    reviewed: '已复核',
+    archived: '已归档',
+    false_alarm: '误报',
+  };
+
   const handleViewAlarm = (task: PendingTask) => {
     if (task.alarmId) {
       const alarm = alarms.find((a) => a.id === task.alarmId);
@@ -68,6 +90,7 @@ const PendingTasks: React.FC = () => {
     const now = dayjs();
     const isOverdue = deadline.isBefore(now);
     const isUrgent = deadline.diff(now, 'minute') <= 30 && !isOverdue;
+    const relatedAlarm = task.alarmId ? alarms.find((a) => a.id === task.alarmId) : undefined;
 
     return (
       <List.Item
@@ -105,6 +128,13 @@ const PendingTasks: React.FC = () => {
           description={
             <div>
               <div style={{ color: '#91caff', marginBottom: 4 }}>{task.description}</div>
+              {relatedAlarm && (
+                <div style={{ marginBottom: 8 }}>
+                  <Tag color={flowStatusColor[relatedAlarm.flowStatus]}>
+                    流转状态: {flowStatusText[relatedAlarm.flowStatus]}
+                  </Tag>
+                </div>
+              )}
               <Space size="middle" style={{ fontSize: 12 }}>
                 <span>
                   <ClockCircleOutlined style={{ marginRight: 4 }} />

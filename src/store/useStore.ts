@@ -13,6 +13,7 @@ import type {
   DrillRecord,
   PendingTask,
   AlarmStatus,
+  AlarmFlowStatus,
 } from '../types';
 import {
   initialAlarms,
@@ -26,6 +27,20 @@ import {
   drillRecords as initialDrillRecords,
   pendingTasks as initialPendingTasks,
 } from '../data/mockData';
+
+const flowStatusToText = (flowStatus: AlarmFlowStatus): string => {
+  const map: Record<AlarmFlowStatus, string> = {
+    pending: '待确认',
+    confirmed: '已确认',
+    notified: '已通知现场',
+    arrived: '已到达现场',
+    disposed: '处置完成',
+    reviewed: '已复核',
+    archived: '已归档',
+    false_alarm: '误报',
+  };
+  return map[flowStatus];
+};
 
 interface AppState {
   alarms: Alarm[];
@@ -44,6 +59,7 @@ interface AppState {
   selectedAlarm: Alarm | null;
   currentModule: string;
   locateAlarm: Alarm | null;
+  previousFloorBeforeLocate?: number;
 
   setSelectedFloor: (floor: number) => void;
   setCurrentModule: (module: string) => void;
@@ -51,15 +67,24 @@ interface AppState {
   setSelectedAlarm: (alarm: Alarm | null) => void;
   setLocateAlarm: (alarm: Alarm | null) => void;
   locateAlarmOnFloor: (alarm: Alarm) => void;
+  clearLocateAlarm: () => void;
 
   confirmAlarm: (alarmId: string, operator: string, remark?: string) => void;
   markFalseAlarm: (alarmId: string, operator: string, remark?: string) => void;
   handleAlarm: (alarmId: string, operator: string, remark?: string) => void;
   updateAlarmStatus: (alarmId: string, status: AlarmStatus, operator: string, remark?: string) => void;
+  updateAlarmFlowStatus: (alarmId: string, flowStatus: AlarmFlowStatus, operator?: string, remark?: string) => void;
+  notifyAlarm: (alarmId: string, operator: string, remark?: string) => void;
+  arriveAlarm: (alarmId: string, operator: string, remark?: string) => void;
+  disposeAlarm: (alarmId: string, operator: string, remark?: string) => void;
+  reviewAlarm: (alarmId: string, operator: string, remark?: string) => void;
+  archiveAlarm: (alarmId: string, operator: string, remark?: string) => void;
 
   addPhoneRecord: (record: Omit<PhoneRecord, 'id'>) => void;
   updatePhoneRecord: (id: string, record: Partial<PhoneRecord>) => void;
   deletePhoneRecord: (id: string) => void;
+  markPhoneCallback: (id: string, remark?: string) => void;
+
   addDisposalStep: (step: Omit<DisposalStep, 'id'>) => void;
   updateDisposalStep: (id: string, step: Partial<DisposalStep>) => void;
   deleteDisposalStep: (id: string) => void;
@@ -72,7 +97,13 @@ interface AppState {
   addDutyLog: (log: Omit<DutyLog, 'id'>) => void;
   updateDutyLog: (id: string, log: Partial<DutyLog>) => void;
   deleteDutyLog: (id: string) => void;
-  handoverDuty: (logId: string, offDutyPerson: string, signature: string, remarks?: string) => void;
+  handoverDuty: (logId: string, offDutyPerson: string, signature: string, remarks?: string) => DutyLog | null;
+  getCurrentShiftLog: () => DutyLog | undefined;
+  getCarriedOverItems: () => {
+    carriedOverSteps: DisposalStep[];
+    carriedOverPhones: PhoneRecord[];
+    carriedOverAlarms: Alarm[];
+  };
 
   completePendingTask: (taskId: string) => void;
   addPendingTask: (task: Omit<PendingTask, 'id'>) => void;
@@ -83,6 +114,7 @@ interface AppState {
   getCamerasByFloor: (floor: number) => Camera[];
   getDisposalStepsByAlarm: (alarmId: string) => DisposalStep[];
   getPendingTasksByPriority: (priority: 'high' | 'medium' | 'low') => PendingTask[];
+  getDeviceById: (deviceId: string) => Device | undefined;
 }
 
 export const useStore = create<AppState>()(
@@ -113,8 +145,13 @@ export const useStore = create<AppState>()(
       locateAlarmOnFloor: (alarm) =>
         set({
           currentModule: 'floor',
+          previousFloorBeforeLocate: get().selectedFloor,
           selectedFloor: alarm.floor,
           locateAlarm: alarm,
+        }),
+      clearLocateAlarm: () =>
+        set({
+          locateAlarm: null,
         }),
 
       confirmAlarm: (alarmId, operator, remark) => {
@@ -125,6 +162,7 @@ export const useStore = create<AppState>()(
               ? {
                   ...a,
                   status: 'confirmed',
+                  flowStatus: 'confirmed',
                   confirmTime: now,
                   operator,
                   remark: remark || a.remark,
@@ -151,6 +189,7 @@ export const useStore = create<AppState>()(
               ? {
                   ...a,
                   status: 'false_alarm',
+                  flowStatus: 'false_alarm',
                   confirmTime: now,
                   handleTime: now,
                   operator,
@@ -179,7 +218,9 @@ export const useStore = create<AppState>()(
               ? {
                   ...a,
                   status: 'handled',
+                  flowStatus: 'disposed',
                   handleTime: now,
+                  disposeTime: now,
                   operator,
                   remark: remark || a.remark,
                 }
@@ -216,6 +257,56 @@ export const useStore = create<AppState>()(
         }));
       },
 
+      updateAlarmFlowStatus: (alarmId, flowStatus, operator, remark) => {
+        const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
+        set((state) => ({
+          alarms: state.alarms.map((a) => {
+            if (a.id !== alarmId) return a;
+            const updated = { ...a, flowStatus, operator: operator || a.operator, remark: remark || a.remark } as Alarm;
+            if (flowStatus === 'confirmed' && !a.confirmTime) updated.confirmTime = now;
+            if (flowStatus === 'notified') updated.notifyTime = now;
+            if (flowStatus === 'arrived') updated.arriveTime = now;
+            if (flowStatus === 'disposed') {
+              updated.disposeTime = now;
+              updated.status = 'handled';
+              updated.handleTime = now;
+            }
+            if (flowStatus === 'reviewed') updated.reviewTime = now;
+            if (flowStatus === 'archived') {
+              updated.archiveTime = now;
+              updated.status = 'archived';
+            }
+            if (flowStatus === 'false_alarm') {
+              updated.status = 'false_alarm';
+              updated.handleTime = now;
+            }
+            return updated;
+          }),
+          pendingTasks: state.pendingTasks.map((t) => {
+            if (t.alarmId !== alarmId) return t;
+            if (flowStatus === 'false_alarm' || flowStatus === 'disposed' || flowStatus === 'archived') {
+              return {
+                ...t,
+                completed: true,
+                title: `[已完成] ${t.title.replace(/^\[处理中\] /, '').replace(/^\[已完成\] /, '')}`,
+                description: `${t.description} (${flowStatus === 'false_alarm' ? '误报' : flowStatus === 'archived' ? '已归档' : '处置完成'})`,
+              };
+            }
+            return {
+              ...t,
+              title: `[处理中] ${t.title.replace(/^\[处理中\] /, '').replace(/^\[已完成\] /, '')}`,
+              description: `${t.description} (${flowStatusToText(flowStatus)})`,
+            };
+          }),
+        }));
+      },
+
+      notifyAlarm: (alarmId, operator, remark) => get().updateAlarmFlowStatus(alarmId, 'notified', operator, remark),
+      arriveAlarm: (alarmId, operator, remark) => get().updateAlarmFlowStatus(alarmId, 'arrived', operator, remark),
+      disposeAlarm: (alarmId, operator, remark) => get().updateAlarmFlowStatus(alarmId, 'disposed', operator, remark),
+      reviewAlarm: (alarmId, operator, remark) => get().updateAlarmFlowStatus(alarmId, 'reviewed', operator, remark),
+      archiveAlarm: (alarmId, operator, remark) => get().updateAlarmFlowStatus(alarmId, 'archived', operator, remark),
+
       addPhoneRecord: (record) => {
         set((state) => ({
           phoneRecords: [
@@ -239,6 +330,20 @@ export const useStore = create<AppState>()(
       deletePhoneRecord: (id) => {
         set((state) => ({
           phoneRecords: state.phoneRecords.filter((r) => r.id !== id),
+        }));
+      },
+
+      markPhoneCallback: (id, remark) => {
+        set((state) => ({
+          phoneRecords: state.phoneRecords.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  callbackStatus: 'done',
+                  callbackRemark: remark || r.callbackRemark,
+                }
+              : r
+          ),
         }));
       },
 
@@ -327,19 +432,81 @@ export const useStore = create<AppState>()(
       },
 
       handoverDuty: (logId, offDutyPerson, signature, remarks) => {
-        set((state) => ({
-          dutyLogs: state.dutyLogs.map((log) =>
+        const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
+        const state = get();
+        const currentLog = state.dutyLogs.find((l) => l.id === logId);
+        if (!currentLog) return null;
+
+        const uncompletedSteps = state.disposalSteps.filter((s) => !s.completed).map((s) => s.id);
+        const uncallbackPhones = state.phoneRecords.filter((p) => !p.callbackStatus || p.callbackStatus === 'pending').map((p) => p.id);
+        const activeAlarms = state.alarms
+          .filter((a) => a.status === 'pending' || a.status === 'confirmed')
+          .map((a) => a.id);
+
+        let newLogId: string | null = null;
+
+        set((s) => {
+          const newLogs = s.dutyLogs.map((log) =>
             log.id === logId
               ? {
                   ...log,
                   offDutyPerson,
-                  handoverTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+                  handoverTime: now,
                   signatureOff: signature,
                   remarks: remarks || log.remarks,
+                  carriedOverSteps: uncompletedSteps,
+                  carriedOverPhones: uncallbackPhones,
+                  carriedOverAlarms: activeAlarms,
                 }
               : log
+          );
+
+          const newLog: DutyLog = {
+            id: `DL${String(s.dutyLogs.length + 1).padStart(3, '0')}`,
+            date: dayjs().format('YYYY-MM-DD'),
+            shift: currentLog.shift,
+            onDutyPerson: offDutyPerson,
+            signatureOn: signature,
+            events: [],
+            remarks: '',
+            carriedOverSteps: uncompletedSteps,
+            carriedOverPhones: uncallbackPhones,
+            carriedOverAlarms: activeAlarms,
+          };
+          newLogId = newLog.id;
+
+          return {
+            dutyLogs: [newLog, ...newLogs],
+          };
+        });
+
+        return newLogId ? get().dutyLogs.find((l) => l.id === newLogId) || null : null;
+      },
+
+      getCurrentShiftLog: () => {
+        return get().dutyLogs.find((l) => !l.offDutyPerson);
+      },
+
+      getCarriedOverItems: () => {
+        const currentLog = get().getCurrentShiftLog();
+        if (!currentLog) {
+          return {
+            carriedOverSteps: [],
+            carriedOverPhones: [],
+            carriedOverAlarms: [],
+          };
+        }
+        return {
+          carriedOverSteps: get().disposalSteps.filter((s) =>
+            currentLog.carriedOverSteps?.includes(s.id) || !s.completed
           ),
-        }));
+          carriedOverPhones: get().phoneRecords.filter((p) =>
+            currentLog.carriedOverPhones?.includes(p.id) || !p.callbackStatus || p.callbackStatus === 'pending'
+          ),
+          carriedOverAlarms: get().alarms.filter((a) =>
+            currentLog.carriedOverAlarms?.includes(a.id) || a.status === 'pending' || a.status === 'confirmed'
+          ),
+        };
       },
 
       completePendingTask: (taskId) => {
@@ -372,6 +539,7 @@ export const useStore = create<AppState>()(
           .sort((a, b) => a.order - b.order),
       getPendingTasksByPriority: (priority) =>
         get().pendingTasks.filter((t) => t.priority === priority && !t.completed),
+      getDeviceById: (deviceId) => get().devices.find((d) => d.id === deviceId),
     }),
     {
       name: 'fire-control-station-storage',

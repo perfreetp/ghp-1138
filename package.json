@@ -1,0 +1,57 @@
+{
+  "name": "fire-control-station",
+  "version": "1.0.0",
+  "description": "消防控制室值守台桌面客户端",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:main\"",
+    "dev:renderer": "webpack serve --mode development --config webpack.renderer.js",
+    "dev:main": "webpack --mode development --config webpack.main.js && electron .",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "webpack --mode production --config webpack.renderer.js",
+    "build:main": "webpack --mode production --config webpack.main.js",
+    "start": "electron .",
+    "package": "electron-builder"
+  },
+  "keywords": ["fire-control", "electron", "react"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.40",
+    "@types/react-dom": "^18.2.17",
+    "@types/react-router-dom": "^5.3.3",
+    "concurrently": "^8.2.2",
+    "css-loader": "^6.8.1",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "html-webpack-plugin": "^5.5.4",
+    "style-loader": "^3.3.3",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1"
+  },
+  "dependencies": {
+    "antd": "^5.12.0",
+    "dayjs": "^1.11.10",
+    "echarts": "^5.4.3",
+    "echarts-for-react": "^3.0.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "zustand": "^4.4.7"
+  },
+  "build": {
+    "appId": "com.firecontrol.station",
+    "productName": "消防控制室值守台",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

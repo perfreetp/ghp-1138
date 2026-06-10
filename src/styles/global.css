@@ -159,6 +159,12 @@ body {
 
 .pulse-animation {
   animation: pulse 2s infinite;
+  transform-origin: center;
+}
+
+.pulse-animation-delay {
+  animation: pulse 2s infinite 1s;
+  transform-origin: center;
 }
 
 .floor-plan-container {

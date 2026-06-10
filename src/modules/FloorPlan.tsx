@@ -61,8 +61,16 @@ const FloorPlan: React.FC = () => {
   };
 
   const handleDeviceClick = (device: Device) => {
-    setSelectedDevice(device);
-    setShowDeviceModal(true);
+    const relatedAlarm = alarms.find(
+      (a) => a.deviceId === device.id && a.status === 'pending'
+    );
+    if (relatedAlarm) {
+      setSelectedAlarm(relatedAlarm);
+      setShowAlarmModal(true);
+    } else {
+      setSelectedDevice(device);
+      setShowDeviceModal(true);
+    }
   };
 
   const handleViewCamera = (cameraId: string) => {
@@ -71,6 +79,10 @@ const FloorPlan: React.FC = () => {
       setSelectedAlarm(alarm);
       setShowAlarmModal(true);
     }
+  };
+
+  const isDeviceAlarming = (deviceId: string) => {
+    return alarms.some((a) => a.deviceId === deviceId && a.status === 'pending');
   };
 
   const currentFloor = floors.find((f) => f.id === selectedFloor);
@@ -154,25 +166,37 @@ const FloorPlan: React.FC = () => {
                     className="device-marker"
                     onClick={() => handleDeviceClick(detector)}
                   >
-                    {floorAlarms.some((a) => a.deviceId === detector.id) && (
-                      <circle
-                        cx={detector.position.x}
-                        cy={detector.position.y}
-                        r="20"
-                        fill="none"
-                        stroke="#ff4d4f"
-                        strokeWidth="2"
-                        className="pulse-animation"
-                      />
+                    {isDeviceAlarming(detector.id) && (
+                      <>
+                        <circle
+                          cx={detector.position.x}
+                          cy={detector.position.y}
+                          r="25"
+                          fill="none"
+                          stroke="#ff4d4f"
+                          strokeWidth="3"
+                          className="pulse-animation"
+                        />
+                        <circle
+                          cx={detector.position.x}
+                          cy={detector.position.y}
+                          r="30"
+                          fill="none"
+                          stroke="#ff4d4f"
+                          strokeWidth="2"
+                          opacity="0.5"
+                          className="pulse-animation-delay"
+                        />
+                      </>
                     )}
-                    <Tooltip title={`${detector.name} - ${statusText[detector.status]}`}>
+                    <Tooltip title={`${detector.name} - ${statusText[detector.status]}${isDeviceAlarming(detector.id) ? ' [报警中]' : ''}`}>
                       <circle
                         cx={detector.position.x}
                         cy={detector.position.y}
-                        r="12"
-                        fill={statusColor[detector.status]}
+                        r={isDeviceAlarming(detector.id) ? 14 : 12}
+                        fill={isDeviceAlarming(detector.id) ? '#ff4d4f' : statusColor[detector.status]}
                         stroke="#fff"
-                        strokeWidth="2"
+                        strokeWidth={isDeviceAlarming(detector.id) ? 3 : 2}
                       />
                       <text
                         x={detector.position.x}
@@ -180,7 +204,7 @@ const FloorPlan: React.FC = () => {
                         textAnchor="middle"
                         fill="#fff"
                         fontSize="10"
-                        style={{ pointerEvents: 'none' }}
+                        style={{ pointerEvents: 'none', fontWeight: isDeviceAlarming(detector.id) ? 'bold' : 'normal' }}
                       >
                         烟
                       </text>
@@ -194,15 +218,26 @@ const FloorPlan: React.FC = () => {
                     className="device-marker"
                     onClick={() => handleDeviceClick(door)}
                   >
-                    <Tooltip title={`${door.name} - ${statusText[door.status]}`}>
+                    {isDeviceAlarming(door.id) && (
+                      <circle
+                        cx={door.position.x}
+                        cy={door.position.y}
+                        r="22"
+                        fill="none"
+                        stroke="#ff4d4f"
+                        strokeWidth="2"
+                        className="pulse-animation"
+                      />
+                    )}
+                    <Tooltip title={`${door.name} - ${statusText[door.status]}${isDeviceAlarming(door.id) ? ' [报警中]' : ''}`}>
                       <rect
                         x={door.position.x - 12}
                         y={door.position.y - 8}
                         width="24"
                         height="16"
-                        fill={statusColor[door.status]}
+                        fill={isDeviceAlarming(door.id) ? '#ff4d4f' : statusColor[door.status]}
                         stroke="#fff"
-                        strokeWidth="2"
+                        strokeWidth={isDeviceAlarming(door.id) ? 3 : 2}
                         rx="2"
                       />
                       <text
@@ -211,7 +246,7 @@ const FloorPlan: React.FC = () => {
                         textAnchor="middle"
                         fill="#fff"
                         fontSize="10"
-                        style={{ pointerEvents: 'none' }}
+                        style={{ pointerEvents: 'none', fontWeight: isDeviceAlarming(door.id) ? 'bold' : 'normal' }}
                       >
                         门
                       </text>
@@ -225,12 +260,23 @@ const FloorPlan: React.FC = () => {
                     className="device-marker"
                     onClick={() => handleDeviceClick(exhaust)}
                   >
-                    <Tooltip title={`${exhaust.name} - ${statusText[exhaust.status]}`}>
+                    {isDeviceAlarming(exhaust.id) && (
+                      <circle
+                        cx={exhaust.position.x}
+                        cy={exhaust.position.y}
+                        r="22"
+                        fill="none"
+                        stroke="#ff4d4f"
+                        strokeWidth="2"
+                        className="pulse-animation"
+                      />
+                    )}
+                    <Tooltip title={`${exhaust.name} - ${statusText[exhaust.status]}${isDeviceAlarming(exhaust.id) ? ' [报警中]' : ''}`}>
                       <polygon
                         points={`${exhaust.position.x},${exhaust.position.y - 12} ${exhaust.position.x + 12},${exhaust.position.y + 8} ${exhaust.position.x - 12},${exhaust.position.y + 8}`}
-                        fill={statusColor[exhaust.status]}
+                        fill={isDeviceAlarming(exhaust.id) ? '#ff4d4f' : statusColor[exhaust.status]}
                         stroke="#fff"
-                        strokeWidth="2"
+                        strokeWidth={isDeviceAlarming(exhaust.id) ? 3 : 2}
                       />
                       <text
                         x={exhaust.position.x}
@@ -238,7 +284,7 @@ const FloorPlan: React.FC = () => {
                         textAnchor="middle"
                         fill="#fff"
                         fontSize="10"
-                        style={{ pointerEvents: 'none' }}
+                        style={{ pointerEvents: 'none', fontWeight: isDeviceAlarming(exhaust.id) ? 'bold' : 'normal' }}
                       >
                         排
                       </text>

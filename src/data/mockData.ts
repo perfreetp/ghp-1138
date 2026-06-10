@@ -31,8 +31,8 @@ const now = dayjs();
 export const initialAlarms: Alarm[] = [
   {
     id: 'A001',
-    deviceId: 'D001',
-    deviceName: '烟感探测器',
+    deviceId: 'D053',
+    deviceName: '3层烟感3',
     location: '3层东侧走廊',
     floor: 3,
     type: '烟雾报警',
@@ -44,8 +44,8 @@ export const initialAlarms: Alarm[] = [
   },
   {
     id: 'A002',
-    deviceId: 'D015',
-    deviceName: '手动报警按钮',
+    deviceId: 'D049',
+    deviceName: '2层烟感9',
     location: '2层会议室门口',
     floor: 2,
     type: '手动报警',
@@ -60,8 +60,8 @@ export const initialAlarms: Alarm[] = [
   },
   {
     id: 'A003',
-    deviceId: 'D023',
-    deviceName: '温感探测器',
+    deviceId: 'D015',
+    deviceName: 'B1层烟感5',
     location: 'B1层配电室',
     floor: -1,
     type: '温度报警',
@@ -73,8 +73,8 @@ export const initialAlarms: Alarm[] = [
   },
   {
     id: 'A004',
-    deviceId: 'D008',
-    deviceName: '烟感探测器',
+    deviceId: 'D072',
+    deviceName: '5层烟感2',
     location: '5层办公区',
     floor: 5,
     type: '烟雾报警',
@@ -90,8 +90,8 @@ export const initialAlarms: Alarm[] = [
   },
   {
     id: 'A005',
-    deviceId: 'D031',
-    deviceName: '防火门监测',
+    deviceId: 'FD023',
+    deviceName: '4层防火门3',
     location: '4层楼梯间',
     floor: 4,
     type: '防火门异常',

@@ -6,6 +6,7 @@ import {
   ExclamationCircleOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import type { Alarm } from '../types';
 import { useStore } from '../store/useStore';
 
@@ -17,12 +18,27 @@ interface AlarmModalProps {
 
 const AlarmModal: React.FC<AlarmModalProps> = ({ open, alarm, onClose }) => {
   const [form] = Form.useForm();
-  const { confirmAlarm, markFalseAlarm, handleAlarm, currentUser, cameras, getDisposalStepsByAlarm } = useStore();
+  const { confirmAlarm, markFalseAlarm, handleAlarm, currentUser, cameras, getDisposalStepsByAlarm, alarms, setSelectedAlarm, setShowAlarmModal } = useStore();
   const [showCamera, setShowCamera] = useState(false);
   const [selectedCameraId, setSelectedCameraId] = useState<string>();
 
   const disposalSteps = getDisposalStepsByAlarm(alarm.id);
   const associatedCameras = cameras.filter((c) => alarm.cameraIds.includes(c.id));
+
+  const showNextUrgentAlarm = () => {
+    const pendingUrgentAlarms = alarms.filter(
+      (a) => a.status === 'pending' && a.level === 'urgent' && a.id !== alarm.id
+    );
+    if (pendingUrgentAlarms.length > 0) {
+      const nextAlarm = pendingUrgentAlarms.sort(
+        (a, b) => dayjs(a.alarmTime).valueOf() - dayjs(b.alarmTime).valueOf()
+      )[0];
+      setSelectedAlarm(nextAlarm);
+      setShowAlarmModal(true);
+    } else {
+      onClose();
+    }
+  };
 
   const levelColor = {
     general: 'blue',
@@ -53,19 +69,19 @@ const AlarmModal: React.FC<AlarmModalProps> = ({ open, alarm, onClose }) => {
   const handleConfirm = async () => {
     const values = await form.validateFields();
     confirmAlarm(alarm.id, currentUser, values.remark);
-    onClose();
+    showNextUrgentAlarm();
   };
 
   const handleFalseAlarm = async () => {
     const values = await form.validateFields();
     markFalseAlarm(alarm.id, currentUser, values.remark);
-    onClose();
+    showNextUrgentAlarm();
   };
 
   const handleComplete = async () => {
     const values = await form.validateFields();
     handleAlarm(alarm.id, currentUser, values.remark);
-    onClose();
+    showNextUrgentAlarm();
   };
 
   const openCamera = (cameraId: string) => {

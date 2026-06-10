@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Modal, List, Button, Space, Tag, Progress, Card, Descriptions, Empty } from 'antd';
 import { PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
 import { useStore } from '../store/useStore';
@@ -14,6 +14,16 @@ const DrillPlayer: React.FC<DrillPlayerProps> = ({ open, onClose }) => {
   const [selectedDrill, setSelectedDrill] = useState<DrillRecord | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const intervalRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
 
   const resultColor = {
     excellent: 'green',
@@ -29,46 +39,53 @@ const DrillPlayer: React.FC<DrillPlayerProps> = ({ open, onClose }) => {
     fail: '不合格',
   };
 
+  const stopInterval = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const startInterval = (drill: DrillRecord, startProgress: number = 0) => {
+    stopInterval();
+
+    let currentProgress = startProgress;
+    intervalRef.current = window.setInterval(() => {
+      currentProgress += 1;
+      if (currentProgress >= 100) {
+        currentProgress = 100;
+        stopInterval();
+        setIsPlaying(false);
+        setProgress(100);
+      } else {
+        setProgress(currentProgress);
+      }
+    }, (drill.duration * 1000) / 100);
+  };
+
   const handlePlay = (drill: DrillRecord) => {
     setSelectedDrill(drill);
     setIsPlaying(true);
     setProgress(0);
-
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsPlaying(false);
-          return 100;
-        }
-        return prev + 1;
-      });
-    }, (drill.duration * 1000) / 100);
+    startInterval(drill, 0);
   };
 
   const handlePause = () => {
     setIsPlaying(false);
+    stopInterval();
   };
 
   const handleResume = () => {
-    if (!selectedDrill) return;
+    if (!selectedDrill || progress >= 100) return;
     setIsPlaying(true);
-
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsPlaying(false);
-          return 100;
-        }
-        return prev + 1;
-      });
-    }, (selectedDrill.duration * 1000) / 100);
+    startInterval(selectedDrill, progress);
   };
 
   const handleRestart = () => {
     if (!selectedDrill) return;
-    handlePlay(selectedDrill);
+    setIsPlaying(true);
+    setProgress(0);
+    startInterval(selectedDrill, 0);
   };
 
   return (

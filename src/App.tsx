@@ -40,12 +40,14 @@ const App: React.FC = () => {
     showAlarmModal,
     setShowAlarmModal,
     selectedAlarm,
+    setSelectedAlarm,
     currentUser,
   } = useStore();
 
   const [currentTime, setCurrentTime] = useState(dayjs().format('YYYY-MM-DD HH:mm:ss'));
   const [showDrillPlayer, setShowDrillPlayer] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [alarmSoundEnabled, setAlarmSoundEnabled] = useState(true);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -53,6 +55,48 @@ const App: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const pendingUrgentAlarms = alarms.filter(
+      (a) => a.status === 'pending' && a.level === 'urgent'
+    );
+
+    if (pendingUrgentAlarms.length > 0 && !showAlarmModal) {
+      const firstUrgentAlarm = pendingUrgentAlarms.sort(
+        (a, b) => dayjs(a.alarmTime).valueOf() - dayjs(b.alarmTime).valueOf()
+      )[0];
+      setSelectedAlarm(firstUrgentAlarm);
+      setShowAlarmModal(true);
+
+      if (alarmSoundEnabled) {
+        playAlarmSound();
+      }
+    }
+  }, [alarms, showAlarmModal, alarmSoundEnabled]);
+
+  const playAlarmSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(440, audioContext.currentTime + 0.5);
+      oscillator.frequency.setValueAtTime(880, audioContext.currentTime + 1);
+
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1.5);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 1.5);
+    } catch (e) {
+      console.log('Audio not supported');
+    }
+  };
 
   const pendingCount = alarms.filter((a) => a.status === 'pending').length;
   const highPriorityTasks = pendingTasks.filter((t) => t.priority === 'high' && !t.completed).length;

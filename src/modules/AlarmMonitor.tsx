@@ -47,6 +47,7 @@ const AlarmMonitor: React.FC = () => {
     addDisposalStep,
     getDisposalStepsByAlarm,
     phoneRecords,
+    locateAlarmOnFloor,
   } = useStore();
 
   const [statusFilter, setStatusFilter] = useState<AlarmStatus | 'all'>('all');
@@ -285,6 +286,14 @@ const AlarmMonitor: React.FC = () => {
       fixed: 'right' as const,
       render: (_: any, record: Alarm) => (
         <Space size="small" wrap>
+          <Button
+            type="link"
+            size="small"
+            icon={<EnvironmentOutlined />}
+            onClick={() => locateAlarmOnFloor(record)}
+          >
+            定位
+          </Button>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
             详情
           </Button>

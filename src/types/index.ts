@@ -124,6 +124,14 @@ export interface DailyReport {
   operator: string;
 }
 
+export interface DrillEvent {
+  id: string;
+  name: string;
+  description: string;
+  timeOffset: number;
+  completed: boolean;
+}
+
 export interface DrillRecord {
   id: string;
   name: string;
@@ -133,6 +141,7 @@ export interface DrillRecord {
   videoUrl?: string;
   description: string;
   result: 'excellent' | 'good' | 'pass' | 'fail';
+  events: DrillEvent[];
 }
 
 export interface PendingTask {

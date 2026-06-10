@@ -43,11 +43,14 @@ interface AppState {
   showAlarmModal: boolean;
   selectedAlarm: Alarm | null;
   currentModule: string;
+  locateAlarm: Alarm | null;
 
   setSelectedFloor: (floor: number) => void;
   setCurrentModule: (module: string) => void;
   setShowAlarmModal: (show: boolean) => void;
   setSelectedAlarm: (alarm: Alarm | null) => void;
+  setLocateAlarm: (alarm: Alarm | null) => void;
+  locateAlarmOnFloor: (alarm: Alarm) => void;
 
   confirmAlarm: (alarmId: string, operator: string, remark?: string) => void;
   markFalseAlarm: (alarmId: string, operator: string, remark?: string) => void;
@@ -55,7 +58,11 @@ interface AppState {
   updateAlarmStatus: (alarmId: string, status: AlarmStatus, operator: string, remark?: string) => void;
 
   addPhoneRecord: (record: Omit<PhoneRecord, 'id'>) => void;
+  updatePhoneRecord: (id: string, record: Partial<PhoneRecord>) => void;
+  deletePhoneRecord: (id: string) => void;
   addDisposalStep: (step: Omit<DisposalStep, 'id'>) => void;
+  updateDisposalStep: (id: string, step: Partial<DisposalStep>) => void;
+  deleteDisposalStep: (id: string) => void;
   completeDisposalStep: (stepId: string) => void;
 
   addContact: (contact: Omit<Contact, 'id'>) => void;
@@ -63,6 +70,8 @@ interface AppState {
   deleteContact: (id: string) => void;
 
   addDutyLog: (log: Omit<DutyLog, 'id'>) => void;
+  updateDutyLog: (id: string, log: Partial<DutyLog>) => void;
+  deleteDutyLog: (id: string) => void;
   handoverDuty: (logId: string, offDutyPerson: string, signature: string, remarks?: string) => void;
 
   completePendingTask: (taskId: string) => void;
@@ -94,57 +103,97 @@ export const useStore = create<AppState>()(
       showAlarmModal: false,
       selectedAlarm: null,
       currentModule: 'alarm',
+      locateAlarm: null,
 
       setSelectedFloor: (floor) => set({ selectedFloor: floor }),
       setCurrentModule: (module) => set({ currentModule: module }),
       setShowAlarmModal: (show) => set({ showAlarmModal: show }),
       setSelectedAlarm: (alarm) => set({ selectedAlarm: alarm }),
+      setLocateAlarm: (alarm) => set({ locateAlarm: alarm }),
+      locateAlarmOnFloor: (alarm) =>
+        set({
+          currentModule: 'floor',
+          selectedFloor: alarm.floor,
+          locateAlarm: alarm,
+        }),
 
       confirmAlarm: (alarmId, operator, remark) => {
+        const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
         set((state) => ({
           alarms: state.alarms.map((a) =>
             a.id === alarmId
               ? {
                   ...a,
                   status: 'confirmed',
-                  confirmTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+                  confirmTime: now,
                   operator,
                   remark: remark || a.remark,
                 }
               : a
           ),
+          pendingTasks: state.pendingTasks.map((t) =>
+            t.alarmId === alarmId
+              ? {
+                  ...t,
+                  title: `[处理中] ${t.title.replace(/^\[处理中\] /, '').replace(/^\[已完成\] /, '')}`,
+                  description: `${t.description} (已确认，处置中)`,
+                }
+              : t
+          ),
         }));
       },
 
       markFalseAlarm: (alarmId, operator, remark) => {
+        const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
         set((state) => ({
           alarms: state.alarms.map((a) =>
             a.id === alarmId
               ? {
                   ...a,
                   status: 'false_alarm',
-                  confirmTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-                  handleTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+                  confirmTime: now,
+                  handleTime: now,
                   operator,
                   remark: remark || a.remark,
                 }
               : a
           ),
+          pendingTasks: state.pendingTasks.map((t) =>
+            t.alarmId === alarmId
+              ? {
+                  ...t,
+                  completed: true,
+                  title: `[已完成] ${t.title.replace(/^\[处理中\] /, '').replace(/^\[已完成\] /, '')}`,
+                  description: `${t.description} (误报，已关闭)`,
+                }
+              : t
+          ),
         }));
       },
 
       handleAlarm: (alarmId, operator, remark) => {
+        const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
         set((state) => ({
           alarms: state.alarms.map((a) =>
             a.id === alarmId
               ? {
                   ...a,
                   status: 'handled',
-                  handleTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+                  handleTime: now,
                   operator,
                   remark: remark || a.remark,
                 }
               : a
+          ),
+          pendingTasks: state.pendingTasks.map((t) =>
+            t.alarmId === alarmId
+              ? {
+                  ...t,
+                  completed: true,
+                  title: `[已完成] ${t.title.replace(/^\[处理中\] /, '').replace(/^\[已完成\] /, '')}`,
+                  description: `${t.description} (处置完成)`,
+                }
+              : t
           ),
         }));
       },
@@ -179,6 +228,20 @@ export const useStore = create<AppState>()(
         }));
       },
 
+      updatePhoneRecord: (id, record) => {
+        set((state) => ({
+          phoneRecords: state.phoneRecords.map((r) =>
+            r.id === id ? { ...r, ...record } : r
+          ),
+        }));
+      },
+
+      deletePhoneRecord: (id) => {
+        set((state) => ({
+          phoneRecords: state.phoneRecords.filter((r) => r.id !== id),
+        }));
+      },
+
       addDisposalStep: (step) => {
         set((state) => ({
           disposalSteps: [
@@ -188,6 +251,20 @@ export const useStore = create<AppState>()(
               id: `S${String(state.disposalSteps.length + 1).padStart(3, '0')}`,
             },
           ],
+        }));
+      },
+
+      updateDisposalStep: (id, step) => {
+        set((state) => ({
+          disposalSteps: state.disposalSteps.map((s) =>
+            s.id === id ? { ...s, ...step } : s
+          ),
+        }));
+      },
+
+      deleteDisposalStep: (id) => {
+        set((state) => ({
+          disposalSteps: state.disposalSteps.filter((s) => s.id !== id),
         }));
       },
 
@@ -232,6 +309,20 @@ export const useStore = create<AppState>()(
             },
             ...state.dutyLogs,
           ],
+        }));
+      },
+
+      updateDutyLog: (id, log) => {
+        set((state) => ({
+          dutyLogs: state.dutyLogs.map((l) =>
+            l.id === id ? { ...l, ...log } : l
+          ),
+        }));
+      },
+
+      deleteDutyLog: (id) => {
+        set((state) => ({
+          dutyLogs: state.dutyLogs.filter((l) => l.id !== id),
         }));
       },
 

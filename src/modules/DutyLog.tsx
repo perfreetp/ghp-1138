@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Row,
   Col,
@@ -19,6 +19,7 @@ import {
   Timeline,
   Divider,
   Drawer,
+  Popconfirm,
 } from 'antd';
 import {
   FileTextOutlined,
@@ -29,6 +30,8 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   EyeOutlined,
+  DeleteOutlined,
+  PhoneFilled,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useStore } from '../store/useStore';
@@ -42,11 +45,17 @@ const DutyLogModule: React.FC = () => {
   const {
     phoneRecords,
     addPhoneRecord,
+    updatePhoneRecord,
+    deletePhoneRecord,
     disposalSteps,
     addDisposalStep,
+    updateDisposalStep,
+    deleteDisposalStep,
     completeDisposalStep,
     dutyLogs,
     addDutyLog,
+    updateDutyLog,
+    deleteDutyLog,
     handoverDuty,
     currentUser,
     alarms,
@@ -57,9 +66,37 @@ const DutyLogModule: React.FC = () => {
   const [showHandoverModal, setShowHandoverModal] = useState(false);
   const [showLogDetail, setShowLogDetail] = useState(false);
   const [selectedLog, setSelectedLog] = useState<DutyLog | null>(null);
+  const [editingPhone, setEditingPhone] = useState<PhoneRecord | null>(null);
+  const [editingStep, setEditingStep] = useState<DisposalStep | null>(null);
+  const [editingLog, setEditingLog] = useState<DutyLog | null>(null);
   const [phoneForm] = Form.useForm();
   const [stepForm] = Form.useForm();
   const [handoverForm] = Form.useForm();
+  const [logForm] = Form.useForm();
+
+  useEffect(() => {
+    if (editingPhone) {
+      phoneForm.setFieldsValue({
+        ...editingPhone,
+        time: dayjs(editingPhone.time),
+      });
+    }
+  }, [editingPhone, phoneForm]);
+
+  useEffect(() => {
+    if (editingStep) {
+      stepForm.setFieldsValue(editingStep);
+    }
+  }, [editingStep, stepForm]);
+
+  useEffect(() => {
+    if (editingLog) {
+      logForm.setFieldsValue({
+        ...editingLog,
+        events: editingLog.events?.join('\n'),
+      });
+    }
+  }, [editingLog, logForm]);
 
   const shiftText: Record<string, string> = {
     morning: '早班',
@@ -75,33 +112,48 @@ const DutyLogModule: React.FC = () => {
 
   const handleAddPhoneRecord = async () => {
     const values = await phoneForm.validateFields();
-    addPhoneRecord({
-      alarmId: values.alarmId,
-      time: values.time ? values.time.format('YYYY-MM-DD HH:mm:ss') : dayjs().format('YYYY-MM-DD HH:mm:ss'),
-      caller: currentUser,
-      receiver: values.receiver,
-      phone: values.phone,
-      content: values.content,
-      duration: values.duration,
-    });
-    message.success('通话记录已添加');
+    if (editingPhone) {
+      updatePhoneRecord(editingPhone.id, {
+        ...values,
+        time: values.time ? values.time.format('YYYY-MM-DD HH:mm:ss') : editingPhone.time,
+      });
+      message.success('通话记录已更新');
+      setEditingPhone(null);
+    } else {
+      addPhoneRecord({
+        alarmId: values.alarmId,
+        time: values.time ? values.time.format('YYYY-MM-DD HH:mm:ss') : dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        caller: currentUser,
+        receiver: values.receiver,
+        phone: values.phone,
+        content: values.content,
+        duration: values.duration,
+      });
+      message.success('通话记录已添加');
+    }
     setShowPhoneModal(false);
     phoneForm.resetFields();
   };
 
   const handleAddDisposalStep = async () => {
     const values = await stepForm.validateFields();
-    const alarmSteps = disposalSteps.filter((s) => s.alarmId === values.alarmId);
-    addDisposalStep({
-      alarmId: values.alarmId,
-      order: alarmSteps.length + 1,
-      action: values.action,
-      operator: currentUser,
-      time: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-      completed: false,
-      remark: values.remark,
-    });
-    message.success('处置步骤已添加');
+    if (editingStep) {
+      updateDisposalStep(editingStep.id, values);
+      message.success('处置步骤已更新');
+      setEditingStep(null);
+    } else {
+      const alarmSteps = disposalSteps.filter((s) => s.alarmId === values.alarmId);
+      addDisposalStep({
+        alarmId: values.alarmId,
+        order: alarmSteps.length + 1,
+        action: values.action,
+        operator: currentUser,
+        time: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        completed: false,
+        remark: values.remark,
+      });
+      message.success('处置步骤已添加');
+    }
     setShowStepModal(false);
     stepForm.resetFields();
   };
@@ -138,6 +190,63 @@ const DutyLogModule: React.FC = () => {
   const handleViewLogDetail = (log: DutyLog) => {
     setSelectedLog(log);
     setShowLogDetail(true);
+  };
+
+  const handleEditPhone = (record: PhoneRecord) => {
+    setEditingPhone(record);
+    setShowPhoneModal(true);
+  };
+
+  const handleDeletePhone = (id: string) => {
+    deletePhoneRecord(id);
+    message.success('通话记录已删除');
+  };
+
+  const handleEditStep = (step: DisposalStep) => {
+    setEditingStep(step);
+    setShowStepModal(true);
+  };
+
+  const handleDeleteStep = (id: string) => {
+    deleteDisposalStep(id);
+    message.success('处置步骤已删除');
+  };
+
+  const handleEditLog = (log: DutyLog) => {
+    setEditingLog(log);
+    logForm.setFieldsValue({
+      ...log,
+      events: log.events?.join('\n'),
+    });
+  };
+
+  const handleSaveLogEdit = async () => {
+    if (!editingLog) return;
+    const values = await logForm.validateFields();
+    updateDutyLog(editingLog.id, {
+      ...values,
+      events: values.events ? values.events.split('\n').filter((e: string) => e.trim()) : [],
+    });
+    message.success('值班日志已更新');
+    setEditingLog(null);
+    logForm.resetFields();
+  };
+
+  const handleDeleteLog = (id: string) => {
+    deleteDutyLog(id);
+    message.success('值班日志已删除');
+  };
+
+  const handleClosePhoneModal = () => {
+    setShowPhoneModal(false);
+    setEditingPhone(null);
+    phoneForm.resetFields();
+  };
+
+  const handleCloseStepModal = () => {
+    setShowStepModal(false);
+    setEditingStep(null);
+    stepForm.resetFields();
   };
 
   const phoneColumns = [
@@ -183,6 +292,29 @@ const DutyLogModule: React.FC = () => {
       key: 'alarmId',
       width: 100,
       render: (alarmId: string) => (alarmId ? <Tag color="blue">{alarmId}</Tag> : '-'),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 120,
+      fixed: 'right' as const,
+      render: (_: any, record: PhoneRecord) => (
+        <Space size={4}>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEditPhone(record)}>
+            编辑
+          </Button>
+          <Popconfirm
+            title="确认删除这条通话记录?"
+            onConfirm={() => handleDeletePhone(record.id)}
+            okText="确认"
+            cancelText="取消"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
     },
   ];
 
@@ -240,11 +372,27 @@ const DutyLogModule: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 100,
+      width: 200,
+      fixed: 'right' as const,
       render: (_: any, record: DutyLog) => (
-        <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewLogDetail(record)}>
-          详情
-        </Button>
+        <Space size={4}>
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewLogDetail(record)}>
+            详情
+          </Button>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEditLog(record)}>
+            编辑
+          </Button>
+          <Popconfirm
+            title="确认删除这条值班日志?"
+            onConfirm={() => handleDeleteLog(record.id)}
+            okText="确认"
+            cancelText="取消"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -362,8 +510,8 @@ const DutyLogModule: React.FC = () => {
                         color={step.completed ? '#52c41a' : '#1677ff'}
                         dot={step.completed ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: step.completed ? 'normal' : 'bold' }}>
                               步骤 {step.order}: {step.action}
                             </div>
@@ -376,16 +524,41 @@ const DutyLogModule: React.FC = () => {
                               </div>
                             )}
                           </div>
-                          {!step.completed && (
+                          <Space size={4} style={{ marginLeft: 16, flexShrink: 0 }}>
+                            {!step.completed && (
+                              <Button
+                                type="primary"
+                                size="small"
+                                icon={<CheckCircleOutlined />}
+                                onClick={() => handleCompleteStep(step.id)}
+                              >
+                                完成
+                              </Button>
+                            )}
                             <Button
-                              type="primary"
+                              type="link"
                               size="small"
-                              icon={<CheckCircleOutlined />}
-                              onClick={() => handleCompleteStep(step.id)}
+                              icon={<EditOutlined />}
+                              onClick={() => handleEditStep(step)}
                             >
-                              完成
+                              编辑
                             </Button>
-                          )}
+                            <Popconfirm
+                              title="确认删除这个处置步骤?"
+                              onConfirm={() => handleDeleteStep(step.id)}
+                              okText="确认"
+                              cancelText="取消"
+                            >
+                              <Button
+                                type="link"
+                                size="small"
+                                danger
+                                icon={<DeleteOutlined />}
+                              >
+                                删除
+                              </Button>
+                            </Popconfirm>
+                          </Space>
                         </div>
                       </Timeline.Item>
                     </React.Fragment>
@@ -422,13 +595,13 @@ const DutyLogModule: React.FC = () => {
         title={
           <Space>
             <PhoneOutlined />
-            记录通话
+            {editingPhone ? '编辑通话记录' : '记录通话'}
           </Space>
         }
         open={showPhoneModal}
-        onCancel={() => setShowPhoneModal(false)}
+        onCancel={handleClosePhoneModal}
         onOk={handleAddPhoneRecord}
-        okText="保存"
+        okText={editingPhone ? '保存修改' : '保存'}
         width={600}
       >
         <Form form={phoneForm} layout="vertical">
@@ -496,13 +669,13 @@ const DutyLogModule: React.FC = () => {
         title={
           <Space>
             <EditOutlined />
-            添加处置步骤
+            {editingStep ? '编辑处置步骤' : '添加处置步骤'}
           </Space>
         }
         open={showStepModal}
-        onCancel={() => setShowStepModal(false)}
+        onCancel={handleCloseStepModal}
         onOk={handleAddDisposalStep}
-        okText="添加"
+        okText={editingStep ? '保存修改' : '添加'}
         width={600}
       >
         <Form form={stepForm} layout="vertical">
@@ -511,7 +684,7 @@ const DutyLogModule: React.FC = () => {
             label="关联报警"
             rules={[{ required: true, message: '请选择关联的报警' }]}
           >
-            <Select placeholder="请选择关联的报警">
+            <Select placeholder="请选择关联的报警" disabled={!!editingStep}>
               {pendingAlarms.map((alarm) => (
                 <Option key={alarm.id} value={alarm.id}>
                   {alarm.id} - {alarm.type} - {alarm.location}
@@ -528,6 +701,71 @@ const DutyLogModule: React.FC = () => {
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <TextArea rows={3} placeholder="可选备注信息" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={
+          <Space>
+            <EditOutlined />
+            编辑值班日志
+          </Space>
+        }
+        open={!!editingLog}
+        onCancel={() => {
+          setEditingLog(null);
+          logForm.resetFields();
+        }}
+        onOk={handleSaveLogEdit}
+        okText="保存修改"
+        width={600}
+      >
+        <Form form={logForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="shift"
+                label="班次"
+                rules={[{ required: true, message: '请选择班次' }]}
+              >
+                <Select placeholder="请选择班次">
+                  <Option value="morning">早班 (08:00-16:00)</Option>
+                  <Option value="afternoon">中班 (16:00-24:00)</Option>
+                  <Option value="night">夜班 (00:00-08:00)</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="onDutyPerson"
+                label="值班人员"
+                rules={[{ required: true, message: '请输入值班人员' }]}
+              >
+                <Input placeholder="请输入值班人员姓名" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="offDutyPerson" label="接班人员">
+                <Input placeholder="请输入接班人员姓名" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="handoverTime" label="交接时间">
+                <Input placeholder="交接完成后自动生成" disabled />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="events" label="值班事项">
+            <TextArea
+              rows={3}
+              placeholder="请输入值班期间发生的重要事项，每行一项"
+            />
+          </Form.Item>
+          <Form.Item name="remarks" label="备注">
+            <TextArea rows={2} placeholder="可选备注信息" />
           </Form.Item>
         </Form>
       </Modal>

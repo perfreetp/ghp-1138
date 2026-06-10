@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Modal, List, Button, Space, Tag, Progress, Card, Descriptions, Empty } from 'antd';
-import { PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
+import { Modal, List, Button, Space, Tag, Progress, Card, Descriptions, Empty, Timeline } from 'antd';
+import { PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, ClockCircleOutlined, UserOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useStore } from '../store/useStore';
-import type { DrillRecord } from '../types';
+import type { DrillRecord, DrillEvent } from '../types';
 
 interface DrillPlayerProps {
   open: boolean;
@@ -14,6 +14,7 @@ const DrillPlayer: React.FC<DrillPlayerProps> = ({ open, onClose }) => {
   const [selectedDrill, setSelectedDrill] = useState<DrillRecord | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentEventIndex, setCurrentEventIndex] = useState(-1);
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -24,6 +25,22 @@ const DrillPlayer: React.FC<DrillPlayerProps> = ({ open, onClose }) => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedDrill) return;
+    const currentTime = (progress / 100) * selectedDrill.duration;
+    const events = selectedDrill.events || [];
+    
+    let newCurrentIndex = -1;
+    for (let i = 0; i < events.length; i++) {
+      if (events[i].timeOffset <= currentTime) {
+        newCurrentIndex = i;
+      } else {
+        break;
+      }
+    }
+    setCurrentEventIndex(newCurrentIndex);
+  }, [progress, selectedDrill]);
 
   const resultColor = {
     excellent: 'green',
@@ -67,6 +84,7 @@ const DrillPlayer: React.FC<DrillPlayerProps> = ({ open, onClose }) => {
     setSelectedDrill(drill);
     setIsPlaying(true);
     setProgress(0);
+    setCurrentEventIndex(-1);
     startInterval(drill, 0);
   };
 
@@ -85,7 +103,19 @@ const DrillPlayer: React.FC<DrillPlayerProps> = ({ open, onClose }) => {
     if (!selectedDrill) return;
     setIsPlaying(true);
     setProgress(0);
+    setCurrentEventIndex(-1);
     startInterval(selectedDrill, 0);
+  };
+
+  const formatTime = (minutes: number) => {
+    const mins = Math.floor(minutes);
+    const secs = Math.round((minutes - mins) * 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getCurrentTime = () => {
+    if (!selectedDrill) return '00:00';
+    return formatTime((progress / 100) * selectedDrill.duration);
   };
 
   return (
@@ -151,9 +181,14 @@ const DrillPlayer: React.FC<DrillPlayerProps> = ({ open, onClose }) => {
                 </div>
               </div>
 
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 12, color: '#91caff' }}>
+                <span>00:00</span>
+                <span style={{ fontSize: 16, fontWeight: 'bold', color: '#e6f0ff' }}>{getCurrentTime()} / {selectedDrill ? formatTime(selectedDrill.duration) : '00:00'}</span>
+                <span>{selectedDrill ? formatTime(selectedDrill.duration) : '00:00'}</span>
+              </div>
               <Progress percent={Math.round(progress)} strokeColor="#1677ff" style={{ marginBottom: 16 }} />
 
-              <Space style={{ width: '100%', justifyContent: 'center' }}>
+              <Space style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }}>
                 {isPlaying ? (
                   <Button type="primary" icon={<PauseCircleOutlined />} onClick={handlePause} size="large">
                     暂停
@@ -167,6 +202,55 @@ const DrillPlayer: React.FC<DrillPlayerProps> = ({ open, onClose }) => {
                   重新播放
                 </Button>
               </Space>
+
+              {selectedDrill?.events && selectedDrill.events.length > 0 && (
+                <Card
+                  title={
+                    <Space>
+                      <ClockCircleOutlined />
+                      事件时间轴
+                    </Space>
+                  }
+                  size="small"
+                >
+                  <Timeline
+                    mode="left"
+                    items={selectedDrill.events.map((event: DrillEvent, index: number) => ({
+                      color: index <= currentEventIndex ? '#52c41a' : '#8c8c8c',
+                      dot: index === currentEventIndex && isPlaying ? <PlayCircleOutlined style={{ fontSize: 16, color: '#1677ff' }} /> : undefined,
+                      children: (
+                        <div style={{ 
+                          padding: '8px 12px', 
+                          background: index <= currentEventIndex ? 'rgba(82, 196, 26, 0.1)' : 'rgba(28, 47, 69, 0.5)',
+                          borderRadius: 4,
+                          borderLeft: index === currentEventIndex && isPlaying ? '3px solid #1677ff' : '3px solid transparent',
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Space>
+                              {index <= currentEventIndex && <CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                              <span style={{ 
+                                fontWeight: index === currentEventIndex ? 'bold' : 'normal',
+                                color: index <= currentEventIndex ? '#e6f0ff' : '#8c8c8c',
+                              }}>
+                                {event.name}
+                              </span>
+                              {index === currentEventIndex && isPlaying && (
+                                <Tag color="blue" style={{ animation: 'blink 1s infinite' }}>进行中</Tag>
+                              )}
+                            </Space>
+                            <Tag color={index <= currentEventIndex ? 'success' : 'default'}>
+                              {formatTime(event.timeOffset)}
+                            </Tag>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#91caff', marginTop: 4 }}>
+                            {event.description}
+                          </div>
+                        </div>
+                      ),
+                    }))}
+                  />
+                </Card>
+              )}
             </Card>
           ) : (
             <List
